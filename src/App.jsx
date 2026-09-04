@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, X, Phone, MapPin, User, Users, ChevronRight, Church, Trash2, Save } from "lucide-react";
+import { db } from "./firebase";
+import { collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
 
 const SEED_CHURCHES = [
   { id: "pk14", name: "MCPP PK14 – Tabernacle du Seigneur Jésus Christ", area: "PK14, Douala", pastor: "Rev. Pasteur Ela", phone: "699645413 / 672894303" },
@@ -33,7 +35,7 @@ function Logo() {
 }
 
 export default function MCPPDoualaConnect() {
-  const [churches, setChurches] = useState(SEED_CHURCHES);
+  const [churches, setChurches] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState({ screen: "directory", churchId: null });
@@ -43,52 +45,73 @@ export default function MCPPDoualaConnect() {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    try {
-      const c = localStorage.getItem("mcpp-churches");
-      if (c) setChurches(JSON.parse(c));
-    } catch (e) {}
-    try {
-      const m = localStorage.getItem("mcpp-members");
-      if (m) setMembers(JSON.parse(m));
-    } catch (e) { setMembers([]); }
-    setLoading(false);
-  }, []);
+    const churchesRef = collection(db, "churches");
+    const unsubChurches = onSnapshot(churchesRef, async (snapshot) => {
+      if (snapshot.empty) {
+        for (const c of SEED_CHURCHES) {
+          const { id, ...data } = c;
+          await setDoc(doc(db, "churches", id), data);
+        }
+        return;
+      }
+      setChurches(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
 
-  const persistChurches = useCallback((next) => {
-    setChurches(next);
-    try { localStorage.setItem("mcpp-churches", JSON.stringify(next)); } catch (e) { showToast("Échec de la sauvegarde des églises"); }
-  }, []);
+    const membersRef = collection(db, "members");
+    const unsubMembers = onSnapshot(membersRef, (snapshot) => {
+      setMembers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
 
-  const persistMembers = useCallback((next) => {
-    setMembers(next);
-    try { localStorage.setItem("mcpp-members", JSON.stringify(next)); } catch (e) { showToast("Échec de la sauvegarde des membres"); }
+    return () => {
+      unsubChurches();
+      unsubMembers();
+    };
   }, []);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
 
-  function addChurch(data) {
+  async function addChurch(data) {
     const id = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `eglise-${Date.now()}`;
-    persistChurches([...churches, { id, ...data }]);
-    setShowAddChurch(false);
-    showToast("Église ajoutée");
+    try {
+      await setDoc(doc(db, "churches", id), data);
+      setShowAddChurch(false);
+      showToast("Église ajoutée");
+    } catch (e) {
+      showToast("Échec de l'ajout de l'église");
+    }
   }
 
-  function deleteChurch(id) {
-    persistChurches(churches.filter((c) => c.id !== id));
-    persistMembers(members.filter((m) => m.churchId !== id));
-    showToast("Église supprimée");
-    setView({ screen: "directory", churchId: null });
+  async function deleteChurch(id) {
+    try {
+      await deleteDoc(doc(db, "churches", id));
+      const q = query(collection(db, "members"), where("churchId", "==", id));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+      showToast("Église supprimée");
+      setView({ screen: "directory", churchId: null });
+    } catch (e) {
+      showToast("Échec de la suppression de l'église");
+    }
   }
 
-  function addMember(data) {
-    persistMembers([...members, { id: `mem-${Date.now()}`, ...data }]);
-    setShowAddMember(false);
-    showToast("Membre ajouté");
+  async function addMember(data) {
+    try {
+      await addDoc(collection(db, "members"), data);
+      setShowAddMember(false);
+      showToast("Membre ajouté");
+    } catch (e) {
+      showToast("Échec de l'ajout du membre");
+    }
   }
 
-  function deleteMember(id) {
-    persistMembers(members.filter((m) => m.id !== id));
-    showToast("Membre supprimé");
+  async function deleteMember(id) {
+    try {
+      await deleteDoc(doc(db, "members", id));
+      showToast("Membre supprimé");
+    } catch (e) {
+      showToast("Échec de la suppression du membre");
+    }
   }
 
   const filteredChurches = churches.filter((c) =>
@@ -309,4 +332,4 @@ function AddMemberModal({ churchId, onClose, onSave }) {
       </div>
     </Modal>
   );
-                                       }
+}
