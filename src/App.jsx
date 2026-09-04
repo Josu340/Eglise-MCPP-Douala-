@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, X, Phone, MapPin, User, Users, ChevronRight, Church, Trash2, Save } from "lucide-react";
+import { Search, Plus, X, Phone, MapPin, User, Users, ChevronRight, Church, Trash2, Save, Lock } from "lucide-react";
 import { db } from "./firebase";
 import { collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
 
@@ -8,6 +8,8 @@ const SEED_CHURCHES = [
   { id: "pk12", name: "MCPP PK12 – Tabernacle", area: "PK12, Douala", pastor: "Dr. Ndjeng Becker", phone: "696415929 / 694411211" },
   { id: "nyalla", name: "MCPP Nyalla – Tabernacle du Quartier", area: "Nyalla, Douala", pastor: "Pasteur Tsekane Bienvenue", phone: "679 61 22 31" },
 ];
+
+const DEFAULT_PASSWORD = "jesus christ";
 
 function SoundWave() {
   const bars = [3, 6, 4, 8, 5, 9, 4, 7, 3, 6, 5, 8];
@@ -44,6 +46,12 @@ export default function MCPPDoualaConnect() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const [editPassword, setEditPassword] = useState(DEFAULT_PASSWORD);
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mcpp-unlocked") === "1");
+  const [pendingAction, setPendingAction] = useState(null);
+  const [showPasswordGate, setShowPasswordGate] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
   useEffect(() => {
     const churchesRef = collection(db, "churches");
     const unsubChurches = onSnapshot(churchesRef, async (snapshot) => {
@@ -63,13 +71,49 @@ export default function MCPPDoualaConnect() {
       setMembers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const settingsRef = doc(db, "settings", "app");
+    const unsubSettings = onSnapshot(settingsRef, async (snap) => {
+      if (!snap.exists()) {
+        await setDoc(settingsRef, { editPassword: DEFAULT_PASSWORD });
+        return;
+      }
+      setEditPassword(snap.data().editPassword || DEFAULT_PASSWORD);
+    });
+
     return () => {
       unsubChurches();
       unsubMembers();
+      unsubSettings();
     };
   }, []);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
+
+  function withUnlock(action) {
+    return (...args) => {
+      if (unlocked) {
+        action(...args);
+      } else {
+        setPendingAction(() => () => action(...args));
+        setPasswordError("");
+        setShowPasswordGate(true);
+      }
+    };
+  }
+
+  function handlePasswordSubmit(value) {
+    if (value === editPassword) {
+      setUnlocked(true);
+      sessionStorage.setItem("mcpp-unlocked", "1");
+      setShowPasswordGate(false);
+      if (pendingAction) {
+        pendingAction();
+        setPendingAction(null);
+      }
+    } else {
+      setPasswordError("Mot de passe incorrect");
+    }
+  }
 
   async function addChurch(data) {
     const id = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `eglise-${Date.now()}`;
@@ -145,14 +189,21 @@ export default function MCPPDoualaConnect() {
         {loading ? (
           <div className="text-center py-16 text-sm" style={{ color: "#7FA8C9" }}>Chargement…</div>
         ) : view.screen === "directory" ? (
-          <DirectoryScreen churches={filteredChurches} members={members} query={query} setQuery={setQuery} onOpen={(id) => setView({ screen: "church", churchId: id })} onAdd={() => setShowAddChurch(true)} />
+          <DirectoryScreen churches={filteredChurches} members={members} query={query} setQuery={setQuery} onOpen={(id) => setView({ screen: "church", churchId: id })} onAdd={withUnlock(() => setShowAddChurch(true))} />
         ) : (
-          <ChurchScreen church={activeChurch} members={churchMembers} onBack={() => setView({ screen: "directory", churchId: null })} onAddMember={() => setShowAddMember(true)} onDeleteMember={deleteMember} onDeleteChurch={deleteChurch} />
+          <ChurchScreen church={activeChurch} members={churchMembers} onBack={() => setView({ screen: "directory", churchId: null })} onAddMember={withUnlock(() => setShowAddMember(true))} onDeleteMember={withUnlock(deleteMember)} onDeleteChurch={withUnlock(deleteChurch)} />
         )}
       </main>
 
       {showAddChurch && <AddChurchModal onClose={() => setShowAddChurch(false)} onSave={addChurch} />}
       {showAddMember && activeChurch && <AddMemberModal churchId={activeChurch.id} onClose={() => setShowAddMember(false)} onSave={addMember} />}
+      {showPasswordGate && (
+        <PasswordGateModal
+          error={passwordError}
+          onClose={() => { setShowPasswordGate(false); setPendingAction(null); }}
+          onSubmit={handlePasswordSubmit}
+        />
+      )}
 
       {toast && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-[13px] mcpp-body z-50" style={{ background: "#38BDF8", color: "#0A2C47", fontWeight: 600 }}>
@@ -284,6 +335,33 @@ function Modal({ title, onClose, children }) {
 
 function fieldStyle() { return { background: "#0A2C47", border: "1px solid rgba(56,189,248,0.3)", color: "#F4EFE6" }; }
 
+function PasswordGateModal({ onClose, onSubmit, error }) {
+  const [value, setValue] = useState("");
+  return (
+    <Modal title="Mot de passe requis" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-[13px]" style={{ color: "#7FA8C9" }}>
+          <Lock size={14} /> Réservé aux personnes autorisées.
+        </div>
+        <input
+          autoFocus
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onSubmit(value); }}
+          placeholder="Mot de passe"
+          className="mcpp-focus w-full rounded-lg px-3 py-2 text-[14px]"
+          style={fieldStyle()}
+        />
+        {error && <p className="text-[12px]" style={{ color: "#F87171" }}>{error}</p>}
+        <button onClick={() => onSubmit(value)} className="mcpp-focus w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[14px] font-semibold" style={{ background: "#38BDF8", color: "#0A2C47" }}>
+          <Lock size={15} /> Déverrouiller
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function AddChurchModal({ onClose, onSave }) {
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
@@ -332,4 +410,4 @@ function AddMemberModal({ churchId, onClose, onSave }) {
       </div>
     </Modal>
   );
-}
+                }
