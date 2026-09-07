@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, Plus, X, Phone, MapPin, User, Users, ChevronRight, Church, Trash2, Save, Lock } from "lucide-react";
 import { db } from "./firebase";
 import { collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
+import logo from "./logo_final.webp";
 
 const SEED_CHURCHES = [
   { id: "pk14", name: "MCPP PK14 – Tabernacle du Seigneur Jésus Christ", area: "PK14, Douala", pastor: "Rev. Pasteur Ela", phone: "699645413 / 672894303" },
@@ -23,16 +24,6 @@ function SoundWave() {
         @media (prefers-reduced-motion: reduce) { span { animation: none !important; } }
       `}</style>
     </div>
-  );
-}
-
-function Logo() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <circle cx="20" cy="20" r="19" stroke="#38BDF8" strokeWidth="1.5" fill="#0A2C47" />
-      <path d="M11 27V13l9 8 9-8v14" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="20" cy="10" r="1.6" fill="#0EA5E9" />
-    </svg>
   );
 }
 
@@ -168,48 +159,54 @@ export default function MCPPDoualaConnect() {
   const churchMembers = members.filter((m) => m.churchId === view.churchId);
 
   return (
-    <div className="min-h-screen w-full" style={{ background: "linear-gradient(180deg, #1E7BB8 0%, #0A2C47 100%)", fontFamily: "'Georgia', serif", color: "#F4EFE6" }}>
+    <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "linear-gradient(180deg, #1E7BB8 0%, #0A2C47 100%)", fontFamily: "'Georgia', serif", color: "#F4EFE6" }}>
       <style>{`
         .mcpp-body { font-family: 'Helvetica Neue', Arial, sans-serif; }
         .mcpp-focus:focus-visible { outline: 2px solid #38BDF8; outline-offset: 2px; }
       `}</style>
 
-      <header className="sticky top-0 z-20 mcpp-body" style={{ background: "rgba(10,44,71,0.92)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(56,189,248,0.25)" }}>
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Logo />
-          <div className="flex-1">
-            <h1 className="text-[17px] font-semibold tracking-wide" style={{ color: "#F4EFE6" }}>MCPP Douala Connect</h1>
-            <p className="text-[11px]" style={{ color: "#38BDF8" }}>Répertoire &amp; registre des membres</p>
+      <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0" aria-hidden="true">
+        <img src={logo} alt="" className="w-[130vw] max-w-none sm:w-[60vw]" style={{ opacity: 0.16 }} />
+      </div>
+
+      <div className="relative z-10">
+        <header className="sticky top-0 z-20 mcpp-body" style={{ background: "rgba(10,44,71,0.92)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(56,189,248,0.25)" }}>
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+            <img src={logo} alt="Logo MCPP" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            <div className="flex-1">
+              <h1 className="text-[16px] font-semibold tracking-wide leading-tight" style={{ color: "#F4EFE6" }}>MCPP - Mission Chrétienne de la Parole Parlée</h1>
+              <p className="text-[11px]" style={{ color: "#38BDF8" }}>Répertoire &amp; registre des membres</p>
+            </div>
+            <SoundWave />
           </div>
-          <SoundWave />
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-5 mcpp-body pb-24">
-        {loading ? (
-          <div className="text-center py-16 text-sm" style={{ color: "#7FA8C9" }}>Chargement…</div>
-        ) : view.screen === "directory" ? (
-          <DirectoryScreen churches={filteredChurches} members={members} query={query} setQuery={setQuery} onOpen={(id) => setView({ screen: "church", churchId: id })} onAdd={withUnlock(() => setShowAddChurch(true))} />
-        ) : (
-          <ChurchScreen church={activeChurch} members={churchMembers} onBack={() => setView({ screen: "directory", churchId: null })} onAddMember={withUnlock(() => setShowAddMember(true))} onDeleteMember={withUnlock(deleteMember)} onDeleteChurch={withUnlock(deleteChurch)} />
+        <main className="max-w-2xl mx-auto px-4 py-5 mcpp-body pb-24">
+          {loading ? (
+            <div className="text-center py-16 text-sm" style={{ color: "#7FA8C9" }}>Chargement…</div>
+          ) : view.screen === "directory" ? (
+            <DirectoryScreen churches={filteredChurches} members={members} query={query} setQuery={setQuery} onOpen={(id) => setView({ screen: "church", churchId: id })} onAdd={withUnlock(() => setShowAddChurch(true))} />
+          ) : (
+            <ChurchScreen church={activeChurch} members={churchMembers} onBack={() => setView({ screen: "directory", churchId: null })} onAddMember={withUnlock(() => setShowAddMember(true))} onDeleteMember={withUnlock(deleteMember)} onDeleteChurch={withUnlock(deleteChurch)} />
+          )}
+        </main>
+
+        {showAddChurch && <AddChurchModal onClose={() => setShowAddChurch(false)} onSave={addChurch} />}
+        {showAddMember && activeChurch && <AddMemberModal churchId={activeChurch.id} onClose={() => setShowAddMember(false)} onSave={addMember} />}
+        {showPasswordGate && (
+          <PasswordGateModal
+            error={passwordError}
+            onClose={() => { setShowPasswordGate(false); setPendingAction(null); }}
+            onSubmit={handlePasswordSubmit}
+          />
         )}
-      </main>
 
-      {showAddChurch && <AddChurchModal onClose={() => setShowAddChurch(false)} onSave={addChurch} />}
-      {showAddMember && activeChurch && <AddMemberModal churchId={activeChurch.id} onClose={() => setShowAddMember(false)} onSave={addMember} />}
-      {showPasswordGate && (
-        <PasswordGateModal
-          error={passwordError}
-          onClose={() => { setShowPasswordGate(false); setPendingAction(null); }}
-          onSubmit={handlePasswordSubmit}
-        />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-[13px] mcpp-body z-50" style={{ background: "#38BDF8", color: "#0A2C47", fontWeight: 600 }}>
-          {toast}
-        </div>
-      )}
+        {toast && (
+          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-[13px] mcpp-body z-50" style={{ background: "#38BDF8", color: "#0A2C47", fontWeight: 600 }}>
+            {toast}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -410,4 +407,4 @@ function AddMemberModal({ churchId, onClose, onSave }) {
       </div>
     </Modal>
   );
-                }
+                                            }
