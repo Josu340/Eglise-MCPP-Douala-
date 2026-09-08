@@ -6,7 +6,7 @@ import logo from "./logo_final.webp";
 
 const SEED_CHURCHES = [
   { id: "pk14", name: "MCPP PK14 – Tabernacle du Seigneur Jésus Christ", area: "PK14, Douala", pastor: "Rev. Pasteur Ela", phone: "699645413 / 672894303" },
-  { id: "pk12", name: "MCPP PK12 – Tabernacle", area: "PK12, Douala", pastor: "Dr. Ndjeng Becker", phone: "696415929 / 694411211" },
+  { id: "pk12", name: "MCPP PK12 – Tabernacle pk12", area: "PK12, Douala", pastor: "Dr. Ndjeng Becker", phone: "696415929 / 694411211" },
   { id: "nyalla", name: "MCPP Nyalla – Tabernacle du Quartier", area: "Nyalla, Douala", pastor: "Pasteur Tsekane Bienvenue", phone: "679 61 22 31" },
 ];
 
@@ -174,8 +174,8 @@ export default function MCPPDoualaConnect() {
           <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
             <img src={logo} alt="Logo MCPP" className="w-10 h-10 rounded-full object-cover shrink-0" />
             <div className="flex-1">
-              <h1 className="text-[16px] font-semibold tracking-wide leading-tight" style={{ color: "#F4EFE6" }}>MCPP - Mission Chrétienne de la Parole Parlée</h1>
-              <p className="text-[11px]" style={{ color: "#38BDF8" }}>Répertoire &amp; registre des membres</p>
+              <h1 className="text-[16px] font-semibold tracking-wide leading-tight" style={{ color: "#F4EFE6" }}<p className="text-[11px]" style={{ color: "#38BDF8" }}>Église de la MCPP Cameroun</p>>MCPP - Mission Chrétienne de la Parole Parlée</h1>
+              <p className="text-[11px]" style={{ color: "#38BDF8" }}>Église de la MCPP Cameroun</p>
             </div>
             <SoundWave />
           </div>
